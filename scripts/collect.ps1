@@ -1,12 +1,14 @@
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
 $catalog = Get-Content -Raw (Join-Path $PSScriptRoot '../catalog.json') | ConvertFrom-Json
-# Visit the next slice per workflow run to keep free-runner traffic bounded.
-$batchSize = 20
+# Partition the catalog across the 168 hourly runs in a week.
+$runsPerWeek = 7 * 24
 $runNumber = if ($env:GITHUB_RUN_NUMBER) { [long]$env:GITHUB_RUN_NUMBER } else { 1 }
-$offset = (($runNumber - 1) * $batchSize) % $catalog.Count
-$batch = for ($i = 0; $i -lt [Math]::Min($batchSize, $catalog.Count); $i++) {
-  $catalog[($offset + $i) % $catalog.Count]
+$slot = ($runNumber - 1) % $runsPerWeek
+$start = [int][Math]::Floor($slot * $catalog.Count / $runsPerWeek)
+$end = [int][Math]::Floor(($slot + 1) * $catalog.Count / $runsPerWeek)
+$batch = for ($i = $start; $i -lt $end; $i++) {
+  $catalog[$i]
 }
 $historyDir = Join-Path $PSScriptRoot '../prices'
 New-Item -ItemType Directory -Force $historyDir | Out-Null
