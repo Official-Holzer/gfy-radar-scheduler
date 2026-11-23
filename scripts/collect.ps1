@@ -15,6 +15,7 @@ foreach ($product in $catalog) {
       Write-Host "$asin skipped (no unambiguous one-time price)"
       continue
     }
+    if (!$key) { Write-Host "$asin verified $cents cents (unpublished)"; continue }
     $body = @{cents = [int]$cents; observedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json
     $uri = "$env:GFY_ORIGIN/api/catalog/$asin"
     $result = Invoke-RestMethod $uri -Method Post -MaximumRedirection 0 -Headers @{Authorization = "Bearer $key"} -ContentType application/json -Body $body -TimeoutSec 20
