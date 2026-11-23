@@ -1,12 +1,19 @@
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
 $catalog = Get-Content -Raw (Join-Path $PSScriptRoot '../catalog.json') | ConvertFrom-Json
+# Visit the next slice per workflow run to keep free-runner traffic bounded.
+$batchSize = 20
+$runNumber = if ($env:GITHUB_RUN_NUMBER) { [long]$env:GITHUB_RUN_NUMBER } else { 1 }
+$offset = (($runNumber - 1) * $batchSize) % $catalog.Count
+$batch = for ($i = 0; $i -lt [Math]::Min($batchSize, $catalog.Count); $i++) {
+  $catalog[($offset + $i) % $catalog.Count]
+}
 $key = $env:COLLECTOR_KEY
 $saved = 0
 $unavailable = 0
 $unpublished = 0
 $failures = 0
-foreach ($product in $catalog) {
+foreach ($product in $batch) {
   $asin = $product.id
   try {
     $page = Invoke-WebRequest "https://www.amazon.de/dp/$asin" -TimeoutSec 25
@@ -34,7 +41,7 @@ foreach ($product in $catalog) {
     $failures++
   }
 }
-$summary = "$($catalog.Count) products checked: $saved saved, $unavailable without a clear price, $unpublished verified in read-only mode, $failures errors."
+$summary = "$($batch.Count) of $($catalog.Count) catalog products checked: $saved saved, $unavailable without a clear price, $unpublished verified in read-only mode, $failures errors."
 Write-Host $summary
 if ($env:GITHUB_STEP_SUMMARY) {
   Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary

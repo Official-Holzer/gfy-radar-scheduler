@@ -11,7 +11,7 @@ jobs:
   collect:
     if: github.event.repository.private == false || vars.ACTIONS_ZERO_SPEND_CONFIRMED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
