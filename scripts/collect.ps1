@@ -7,8 +7,20 @@ $runNumber = if ($env:GITHUB_RUN_NUMBER) { [long]$env:GITHUB_RUN_NUMBER } else {
 $slot = ($runNumber - 1) % $runsPerWeek
 $start = [int][Math]::Floor($slot * $catalog.Count / $runsPerWeek)
 $end = [int][Math]::Floor(($slot + 1) * $catalog.Count / $runsPerWeek)
-$batch = for ($i = $start; $i -lt $end; $i++) {
+$batch = @(for ($i = $start; $i -lt $end; $i++) {
   $catalog[$i]
+})
+$enrollmentFailure = 0
+try {
+  $enrolled = Invoke-RestMethod "https://gfy-preisradar.lucaholzerlz.chatgpt.site/api/enrollments/$slot" -TimeoutSec 30
+  if ($null -eq $enrolled.products) { throw 'Invalid enrollment response.' }
+  $seedIds = [Collections.Generic.HashSet[string]]::new([string[]]$catalog.id)
+  foreach ($product in $enrolled.products) {
+    if ($product.id -cmatch '^[A-Z0-9]{10}$' -and $seedIds.Add($product.id)) { $batch += $product }
+  }
+} catch {
+  $enrollmentFailure = 1
+  Write-Warning "Unable to load newly enrolled products: $_"
 }
 $historyDir = Join-Path $PSScriptRoot '../prices'
 New-Item -ItemType Directory -Force $historyDir | Out-Null
@@ -43,9 +55,9 @@ foreach ($product in $batch) {
     $failures++
   }
 }
-$summary = "$($batch.Count) of $($catalog.Count) catalog products checked: $saved saved, $unavailable without a clear price, $failures errors."
+$summary = "$($batch.Count) scheduled products checked: $saved saved, $unavailable without a clear price, $failures errors."
 Write-Host $summary
 if ($env:GITHUB_STEP_SUMMARY) {
   Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
 }
-if ($failures) { exit 1 }
+if ($failures -or $enrollmentFailure) { exit 1 }
