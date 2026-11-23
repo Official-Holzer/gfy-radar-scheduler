@@ -3,6 +3,8 @@ $OutputEncoding = [Text.UTF8Encoding]::new($false)
 $catalog = Get-Content -Raw (Join-Path $PSScriptRoot '../catalog.json') | ConvertFrom-Json
 $key = $env:COLLECTOR_KEY
 $saved = 0
+$unavailable = 0
+$unpublished = 0
 $failures = 0
 foreach ($product in $catalog) {
   $asin = $product.id
@@ -11,10 +13,15 @@ foreach ($product in $catalog) {
     $cents = $page.Content | python -B (Join-Path $PSScriptRoot 'collect.py') $asin
     if ($LASTEXITCODE) { throw 'Parser failed.' }
     if (!$cents) {
+      $unavailable++
       Write-Host "$asin skipped (no unambiguous one-time price)"
       continue
     }
-    if (!$key) { Write-Host "$asin verified $cents cents (unpublished)"; continue }
+    if (!$key) {
+      $unpublished++
+      Write-Host "$asin verified $cents cents (unpublished)"
+      continue
+    }
     $body = @{cents = [int]$cents; observedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json
     $uri = "$env:GFY_ORIGIN/api/catalog/$asin"
     $result = Invoke-RestMethod $uri -Method Post -MaximumRedirection 0 -Headers @{Authorization = "Bearer $key"} -ContentType application/json -Body $body -TimeoutSec 20
@@ -27,5 +34,10 @@ foreach ($product in $catalog) {
     $failures++
   }
 }
-Write-Host "$saved of $($catalog.Count) products recorded"
-if (!$saved -or $failures) { exit 1 }
+$summary = "$($catalog.Count) products checked: $saved saved, $unavailable without a clear price, $unpublished verified in read-only mode, $failures errors."
+Write-Host $summary
+if ($env:GITHUB_STEP_SUMMARY) {
+  Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
+  if (!$key) { Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'Read-only run. Website publishing is not configured.' }
+}
+if ($failures) { exit 1 }
