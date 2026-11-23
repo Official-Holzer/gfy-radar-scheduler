@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 */4 * * *'
-permissions: {}
+permissions: { contents: read }
 concurrency:
   group: catalog-price-check
   cancel-in-progress: false
@@ -13,41 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
-      - name: Trigger hosted GFY checks and report verified observations
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install lxml==5.4.0
+      - name: Collect Amazon.de catalog prices
+        run: ./scripts/collect.ps1
+        shell: pwsh
         env:
           GFY_ORIGIN: ${{ vars.GFY_ORIGIN }}
-        shell: python
-        run: |
-          import os
-          import json
-          import re
-          import time
-          from urllib.request import urlopen
-
-          site = os.environ['GFY_ORIGIN']
-          def read(path):
-              with urlopen(site + path, timeout=20) as response:
-                  return json.load(response)
-
-          products = read('/catalog.json')
-          verified = 0
-          failures = 0
-          for product in products:
-              asin = product['id']
-              if not re.fullmatch('[A-Z0-9]{10}', asin):
-                  raise ValueError('Invalid catalog identifier')
-              try:
-                  data = read('/api/history/' + asin)
-                  checked = data.get('lastAttempt') or 0
-                  age = time.time() * 1000 - checked
-                  observed = 0 <= age <= 3600000 and any(
-                      p['source'] == 'amazon' and p['observed_at'] == checked
-                      for p in data['observations'])
-                  verified += int(observed)
-                  print(asin, 'observed' if observed else 'price unavailable')
-              except (OSError, ValueError, KeyError) as error:
-                  failures += 1
-                  print(asin, type(error).__name__)
-          print(f'{verified} of {len(products)} products have a verified recent price.')
-          if failures or not verified:
-              raise SystemExit(1)
+          COLLECTOR_KEY: ${{ secrets.COLLECTOR_KEY }}
