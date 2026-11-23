@@ -2,7 +2,6 @@ $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
 $catalog = Get-Content -Raw (Join-Path $PSScriptRoot '../catalog.json') | ConvertFrom-Json
 $key = $env:COLLECTOR_KEY
-if (!$key) { throw 'Collector key missing.' }
 $saved = 0
 $failures = 0
 foreach ($product in $catalog) {
