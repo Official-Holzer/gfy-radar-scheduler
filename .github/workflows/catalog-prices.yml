@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 */4 * * *'
-permissions: { contents: read }
+permissions: { contents: write }
 concurrency:
   group: catalog-price-check
   cancel-in-progress: false
@@ -23,6 +23,14 @@ jobs:
       - name: Collect Amazon.de catalog prices
         run: ./scripts/collect.ps1
         shell: pwsh
+      - name: Publish confirmed prices
+        if: ${{ !cancelled() }}
         env:
-          GFY_ORIGIN: ${{ vars.GFY_ORIGIN }}
-          COLLECTOR_KEY: ${{ secrets.COLLECTOR_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! compgen -G 'prices/*.json' > /dev/null; then exit 0; fi
+          git add -- prices/
+          git diff --cached --quiet && exit 0
+          git -c user.name=GFY -c user.email='gfy-radar@users.noreply.github.com' commit -m "Archive verified Amazon.de prices"
+          gh auth setup-git
+          git push origin HEAD:main

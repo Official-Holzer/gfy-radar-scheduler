@@ -8,10 +8,10 @@ $offset = (($runNumber - 1) * $batchSize) % $catalog.Count
 $batch = for ($i = 0; $i -lt [Math]::Min($batchSize, $catalog.Count); $i++) {
   $catalog[($offset + $i) % $catalog.Count]
 }
-$key = $env:COLLECTOR_KEY
+$historyDir = Join-Path $PSScriptRoot '../prices'
+New-Item -ItemType Directory -Force $historyDir | Out-Null
 $saved = 0
 $unavailable = 0
-$unpublished = 0
 $failures = 0
 foreach ($product in $batch) {
   $asin = $product.id
@@ -24,15 +24,15 @@ foreach ($product in $batch) {
       Write-Host "$asin skipped (no unambiguous one-time price)"
       continue
     }
-    if (!$key) {
-      $unpublished++
-      Write-Host "$asin verified $cents cents (unpublished)"
-      continue
-    }
-    $body = @{cents = [int]$cents; observedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()} | ConvertTo-Json
-    $uri = "$env:GFY_ORIGIN/api/catalog/$asin"
-    $result = Invoke-RestMethod $uri -Method Post -MaximumRedirection 0 -Headers @{Authorization = "Bearer $key"} -ContentType application/json -Body $body -TimeoutSec 20
-    if (!$result.saved) { throw 'Database write was not acknowledged.' }
+    if ($asin -cnotmatch '^[A-Z0-9]{10}$' -or [int]$cents -le 0) { throw 'Invalid observation.' }
+    $path = Join-Path $historyDir "$asin.json"
+    $previous = if (Test-Path -LiteralPath $path) { Get-Content -Raw -LiteralPath $path | ConvertFrom-Json }
+    $points = @($previous | Where-Object { $null -ne $_ }) + @(@{
+      observed_at = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+      cents = [int]$cents
+      source = 'amazon'
+    })
+    ConvertTo-Json -InputObject $points -Compress | Set-Content -LiteralPath $path -Encoding utf8NoBOM
     Write-Host "$asin recorded $cents cents"
     $saved++
   }
@@ -41,10 +41,9 @@ foreach ($product in $batch) {
     $failures++
   }
 }
-$summary = "$($batch.Count) of $($catalog.Count) catalog products checked: $saved saved, $unavailable without a clear price, $unpublished verified in read-only mode, $failures errors."
+$summary = "$($batch.Count) of $($catalog.Count) catalog products checked: $saved saved, $unavailable without a clear price, $failures errors."
 Write-Host $summary
 if ($env:GITHUB_STEP_SUMMARY) {
   Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary
-  if (!$key) { Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'Read-only run. Website publishing is not configured.' }
 }
 if ($failures) { exit 1 }
