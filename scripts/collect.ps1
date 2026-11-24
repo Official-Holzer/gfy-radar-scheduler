@@ -97,4 +97,8 @@ $summary = "$checked checks: $saved saved, $reused already archived, $noPrice wi
 Write-Host $summary
 Write-Host ('Direct listing outcomes: ' + ($listingResults | ConvertTo-Json -Compress))
 if ($env:GITHUB_STEP_SUMMARY) { Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary }
+if ($env:GITHUB_RUN_ID) {
+  python (Join-Path $PSScriptRoot 'report.py') $env:GITHUB_RUN_ID $checked $saved $reused $failures
+  if ($LASTEXITCODE -ne 0) { throw 'Could not generate collector statistics.' }
+}
 if ($failures) { exit 1 }

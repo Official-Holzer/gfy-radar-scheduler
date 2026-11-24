@@ -29,6 +29,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git add -- rotation.json
+          git add -- README.md recent-runs.json
           git add -- prices/
           git diff --cached --quiet && exit 0
           git -c user.name=GFY -c user.email='gfy-radar@users.noreply.github.com' commit -m "Record catalog progress and verified prices"
