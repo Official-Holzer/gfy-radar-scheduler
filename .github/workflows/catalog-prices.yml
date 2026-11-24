@@ -28,9 +28,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! compgen -G 'prices/*.json' > /dev/null; then exit 0; fi
+          git add -- rotation.json
           git add -- prices/
           git diff --cached --quiet && exit 0
-          git -c user.name=GFY -c user.email='gfy-radar@users.noreply.github.com' commit -m "Archive verified Amazon.de prices"
+          git -c user.name=GFY -c user.email='gfy-radar@users.noreply.github.com' commit -m "Record catalog progress and verified prices"
           gh auth setup-git
+          git -c committer.name=GFY -c committer.email=gfy-radar@users.noreply.github.com pull --rebase origin main
           git push origin HEAD:main
