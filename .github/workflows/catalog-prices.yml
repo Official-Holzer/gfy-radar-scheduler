@@ -13,17 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 58
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - run: python -m pip install lxml==5.4.0
       - name: Collect Amazon.de catalog prices
         run: ./scripts/collect.ps1
         shell: pwsh
-      - name: Publish confirmed prices
+      - name: Publish progress and confirmed prices
         if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ github.token }}
