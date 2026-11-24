@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from lxml import html
 
-AGENT = "GFY-Preisradar/1.0 (ChatGPT-User/1.0; +https://gfy-radar.pages.dev/datenschutz)"
+AGENT = "ChatGPT-User/1.0 (GFY-Preisradar/1.0; +https://gfy-radar.pages.dev/datenschutz)"
 LABELS = ["Gemeldeter Tiefstpreis", "Gemeldeter Höchstpreis", "Gemeldeter Preis"]
 ROOT = Path(__file__).resolve().parent.parent
 

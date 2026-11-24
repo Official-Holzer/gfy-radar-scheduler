@@ -21,9 +21,12 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - run: python3 -m venv "$RUNNER_TEMP/reference-env" && "$RUNNER_TEMP/reference-env/bin/pip" install lxml==5.4.0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --only-binary=:all: lxml==5.4.0
       - name: Read dated prices
         env:
           START_INDEX: ${{ inputs.start }}
           PRODUCT_COUNT: ${{ inputs.count }}
-        run: '"$RUNNER_TEMP/reference-env/bin/python" scripts/read_reference_prices.py "$START_INDEX" "$PRODUCT_COUNT"'
+        run: python scripts/read_reference_prices.py "$START_INDEX" "$PRODUCT_COUNT"
