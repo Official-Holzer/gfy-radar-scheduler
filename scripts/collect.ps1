@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
 $repo = Split-Path $PSScriptRoot
-$origin = 'https://gfy-preisradar.lucaholzerlz.chatgpt.site'
+$origin = 'https://gfy-preisradar.eitoon.chatgpt.site'
 $catalog = Get-Content -Raw (Join-Path $repo 'catalog.json') | ConvertFrom-Json
 $seedIds = [Collections.Generic.HashSet[string]]::new([string[]]$catalog.id)
 $historyDir = Join-Path $repo 'prices'
