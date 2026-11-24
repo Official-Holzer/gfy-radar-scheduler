@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
-      - run: python -m pip install --only-binary=:all: lxml==5.4.0
+      - run: python -m pip install "--only-binary=:all:" lxml==5.4.0
       - name: Read dated prices
         env:
           START_INDEX: ${{ inputs.start }}
