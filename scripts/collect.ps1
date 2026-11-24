@@ -20,18 +20,7 @@ function Get-Batch([int]$slot) {
   }
 }
 
-function Get-SeedPrice([string]$asin) {
-  $page = Invoke-WebRequest "https://www.amazon.de/dp/$asin" -Headers @{'Accept-Language'='de-DE'} -TimeoutSec 25 -SkipHttpErrorCheck
-  if ($page.StatusCode -in 404,410) { return 'missing' }
-  if ($page.StatusCode -ne 200) { throw "Amazon HTTP $($page.StatusCode)" }
-  $result = $page.Content | python -B (Join-Path $PSScriptRoot 'collect.py') $asin
-  if ($LASTEXITCODE) { throw 'Parser failed.' }
-  if ($result -in 'unmatched','no-price') { return $result }
-  if ($result -notmatch '^[1-9][0-9]{0,7}$') { throw 'Invalid price output.' }
-  return @{ observed_at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); cents=[int]$result; source='amazon' }
-}
-
-function Get-EnrolledPrice([string]$asin) {
+function Get-TrackedPrice([string]$asin) {
   $history = Invoke-RestMethod "$origin/api/history/$asin" -TimeoutSec 30
   if ($history.tracked -ne $true -or $null -eq $history.observations) { throw 'Invalid tracked history response.' }
   $now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
@@ -60,8 +49,6 @@ $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 $checked = 0
 $saved = 0
 $failures = 0
-$unmatched = 0
-$missing = 0
 $noPrice = 0
 $reused = 0
 for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
@@ -71,10 +58,8 @@ for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
     if ([string]::CompareOrdinal($asin, $progress.after_asin) -le 0) { continue }
     if ([DateTimeOffset]::UtcNow -ge $deadline) { $completed = $false; break }
     try {
-      $result = if ($seedIds.Contains($asin)) { Get-SeedPrice $asin } else { Get-EnrolledPrice $asin }
+      $result = Get-TrackedPrice $asin
       switch ($result) {
-        'unmatched' { $unmatched++ }
-        'missing' { $missing++ }
         'no-price' { $noPrice++ }
         default {
           if (Save-Price $asin $result) { $saved++ } else { $reused++ }
@@ -96,8 +81,7 @@ for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
   if (!$completed) { break }
 }
 $due = [Math]::Max(0, [Math]::Floor(($now - $progress.due_at) / 3600) + 1)
-$summary = "$checked checks: $saved saved, $reused already archived, $noPrice without a current price, $missing listings unavailable, $unmatched responses without a matching product, $failures errors. $due overdue hourly slices remain."
+$summary = "$checked checks: $saved saved, $reused already archived, $noPrice without a current price, $failures errors. $due overdue hourly slices remain."
 Write-Host $summary
 if ($env:GITHUB_STEP_SUMMARY) { Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary }
-if ($checked -gt 0 -and $unmatched -eq $checked) { Write-Warning 'Amazon did not return a matching product page for any listing in this batch.' }
 if ($failures) { exit 1 }
