@@ -1,0 +1,29 @@
+name: Read historical reference prices
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: First catalog position (zero-based)
+        required: true
+        default: "0"
+      count:
+        description: Number of products (1–100)
+        required: true
+        default: "12"
+permissions: { contents: read }
+concurrency: reference-price-import
+jobs:
+  read:
+    if: github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - run: python3 -m venv "$RUNNER_TEMP/reference-env" && "$RUNNER_TEMP/reference-env/bin/pip" install lxml==5.4.0
+      - name: Read dated prices
+        env:
+          START_INDEX: ${{ inputs.start }}
+          PRODUCT_COUNT: ${{ inputs.count }}
+        run: '"$RUNNER_TEMP/reference-env/bin/python" scripts/read_reference_prices.py "$START_INDEX" "$PRODUCT_COUNT"'
