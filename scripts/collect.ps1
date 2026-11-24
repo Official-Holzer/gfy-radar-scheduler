@@ -51,6 +51,8 @@ $saved = 0
 $failures = 0
 $noPrice = 0
 $reused = 0
+$readListing = $true
+$listingResults = @{}
 for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
   $batch = @(Get-Batch $progress.slot | Sort-Object -Unique)
   $completed = $true
@@ -59,6 +61,16 @@ for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
     if ([DateTimeOffset]::UtcNow -ge $deadline) { $completed = $false; break }
     try {
       $result = Get-TrackedPrice $asin
+      if ($result -eq 'no-price' -and $readListing) {
+        $listing = python (Join-Path $PSScriptRoot 'collect.py') --fetch $asin
+        if ($LASTEXITCODE -ne 0) { throw 'Listing reader failed.' }
+        if ($listing -match '^[1-9]\d{0,7}$') {
+          $result = @{ observed_at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); cents=[int]$listing; source='amazon' }
+          $listing = 'confirmed'
+        }
+        $listingResults[$listing]++
+        if ($listing -in 'http-403','http-429','http-503','access-challenge') { $readListing = $false }
+      }
       switch ($result) {
         'no-price' { $noPrice++ }
         default {
@@ -83,5 +95,6 @@ for ($slice = 0; $slice -lt 2 -and $progress.due_at -le $now; $slice++) {
 $due = [Math]::Max(0, [Math]::Floor(($now - $progress.due_at) / 3600) + 1)
 $summary = "$checked checks: $saved saved, $reused already archived, $noPrice without a current price, $failures errors. $due overdue hourly slices remain."
 Write-Host $summary
+Write-Host ('Direct listing outcomes: ' + ($listingResults | ConvertTo-Json -Compress))
 if ($env:GITHUB_STEP_SUMMARY) { Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary }
 if ($failures) { exit 1 }

@@ -1,6 +1,8 @@
 """Extract an unambiguous one-time offer for the selected Amazon.de ASIN."""
 import re
 import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from urllib.parse import urlsplit
 
@@ -38,11 +40,18 @@ def price_in_cents(doc, asin):
         if panel.get("data-csa-c-asin", asin) != asin:
             continue
         for offer in panel.xpath(f".//*[{has_class('priceToPay')}]"):
-            if subscription(offer):
+            if subscription(offer) or any(node.get("data-csa-c-asin", asin) != asin
+                                          for node in (offer, *offer.iterancestors())):
                 continue
-            fields = offer.xpath(f".//*[{has_class('a-offscreen')}] | ./*[@aria-hidden='true']")
-            for field in fields:
-                match = re.fullmatch(r"(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})\s*€", field.text_content().strip())
+            values = [node.text_content().strip() for node in
+                      offer.xpath(f".//*[{has_class('a-offscreen')}] | ./*[@aria-hidden='true']")]
+            parts = [offer.xpath(f".//*[{has_class(name)}]") for name in
+                     ("a-price-whole", "a-price-fraction", "a-price-symbol")]
+            if all(len(nodes) == 1 for nodes in parts):
+                whole, fraction, symbol = [nodes[0].text_content().strip() for nodes in parts]
+                values.append(whole.removesuffix(",") + "," + fraction + symbol)
+            for value in values:
+                match = re.fullmatch(r"(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})\s*€", value)
                 if match:
                     prices.add(int(match[1].replace(".", "")) * 100 + int(match[2]))
     # The buy box can also expose the selected offer as explicit currency and amount fields.
@@ -55,7 +64,32 @@ def price_in_cents(doc, asin):
             prices.add(int(amounts[0].replace(".", "")))
     return prices.pop() if len(prices) == 1 and min(prices) > 0 else None
 
-if __name__ == "__main__":
+def read_public_offer(asin):
+    request = Request(f"https://www.amazon.de/dp/{asin}", headers={"Accept-Language": "de-DE"})
+    try:
+        with urlopen(request, timeout=8) as response:
+            if urlsplit(response.url).hostname not in ("amazon.de", "www.amazon.de"):
+                return "unmatched"
+            body = response.read(6_000_001)
+    except HTTPError as exc:
+        return f"http-{exc.code}"
+    except (URLError, TimeoutError, OSError):
+        return "network-error"
+    if len(body) > 6_000_000 or not body.strip():
+        return "unreadable"
+    doc = html.fromstring(body.decode("utf-8", errors="replace"))
+    if doc.xpath("//input[@id='captchacharacters'] | //form[contains(@action,'validateCaptcha')]"):
+        return "access-challenge"
+    if not is_selected_product(doc, asin):
+        return "unmatched"
+    return price_in_cents(doc, asin) or "no-offer"
+
+
+if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == "--fetch":
+    if not re.fullmatch("[A-Z0-9]{10}", sys.argv[2]):
+        sys.exit("Invalid ASIN")
+    print(read_public_offer(sys.argv[2]))
+elif __name__ == "__main__":
     page = sys.stdin.buffer.read().decode("utf-8-sig")
     doc = html.fromstring(page)
     if not is_selected_product(doc, sys.argv[1]):
