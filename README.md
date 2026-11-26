@@ -1,6 +1,6 @@
 # GFY Preisradar · Sammelstatistik
 
-Stand 26.11.2026 15:19 UTC
+Stand 26.11.2026 23:57 UTC
 
 | Katalogabdeckung im GitHub-Sammelarchiv | Produkte | Anteil |
 |---|---:|---:|
@@ -13,6 +13,7 @@ Insgesamt 4 gespeicherte Amazon-Preisbeobachtungen für Katalogprodukte. Ein Pro
 
 | Lauf (UTC) | Prüfungen | Mit Preis | Trefferquote | Neu gespeichert | Fehler |
 |---|---:|---:|---:|---:|---:|
+| [26.11. 23:57](https://github.com/Official-Holzer/gfy-radar-scheduler/actions/runs/45913211443) | 231 | 0 | 0,00 % | 0 | 0 |
 | [26.11. 15:19](https://github.com/Official-Holzer/gfy-radar-scheduler/actions/runs/45846489610) | 232 | 0 | 0,00 % | 0 | 0 |
 | [26.11. 05:08](https://github.com/Official-Holzer/gfy-radar-scheduler/actions/runs/45758693478) | 231 | 0 | 0,00 % | 0 | 0 |
 | [25.11. 22:38](https://github.com/Official-Holzer/gfy-radar-scheduler/actions/runs/45713689607) | 230 | 0 | 0,00 % | 0 | 0 |
